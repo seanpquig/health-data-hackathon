@@ -12,16 +12,17 @@ import argparse
 
 class csv2mysql(object):
 
-    def __init__(self, filename):
+    def __init__(self, filename, database, table, db_host, db_user, password):
         super(csv2mysql, self).__init__()
 
-        self.filename = filename
-        tmp = filename.split('.')[0]
-        if '/' in tmp:
-            tmp = tmp.split('/')[-1:][0]
-        self.tablename = tmp
-        self.csvfile = open(filename)
+        self.database = database
+        self.table = table
+        self.db_host = db_host
+        self.db_user = db_user
+        self.password = password
 
+        self.filename = filename
+        self.csvfile = open(filename)
         self.dialect = csv.Sniffer().sniff(self.csvfile.read(128))
         self.csvfile.seek(0)
 
@@ -29,6 +30,13 @@ class csv2mysql(object):
         self.headers = self.csvreader.next()
         self.headers = [header.split(':')[0] for header in self.headers]
         self.types = dict([(header, 'BIGINT') for header in self.headers])
+
+    def _get_mysql_conn(self):
+        return MySQLdb.connect(host=self.db_host,
+                               port=3306,
+                               user=self.db_user,
+                               db=self.database,
+                               passwd=self.password)
 
     def isFloat(self, x):
         try:
@@ -47,10 +55,12 @@ class csv2mysql(object):
             return False
 
     def generate(self):
-        for x in xrange(500):
-            row = self.csvreader.next()
+        # for x in xrange(500):
+        #     row = self.csvreader.next()
+        for row in self.csvreader:
             for i, header in enumerate(self.headers):
                 col = row[i]
+
                 if self.types[header] == 'BIGINT':
                     if not self.isInteger(col):
                         self.types[header] = 'DOUBLE'
@@ -58,26 +68,38 @@ class csv2mysql(object):
                     if not self.isFloat(col):
                         self.types[header] = 'VARCHAR(255)'
 
-    def buildCreateTable(self, db, table):
-        sql = "CREATE TABLE IF NOT EXISTS `{0}`.`{1}` (\n".format(db, table)
+    def create_table(self):
+        sql = "CREATE TABLE IF NOT EXISTS `{0}`.`{1}` (\n".format(self.database, self.table)
         for header in self.headers:
             sql = sql + "  `{0}` \t {1},\n".format(header, self.types[header])
         sql = sql[:-2]
         sql += "\n);"
-        return sql
 
-    def buildInserts(self):
-        sql = ""
+        with self._get_mysql_conn() as cur:
+            cur.execute(sql)
+
+    def insert_data(self):
         self.csvfile.seek(0)
         self.csvreader = csv.reader(self.csvfile, self.dialect)
         self.csvreader.next()
-        for row in self.csvreader:
-            sql += "INSERT INTO `"+self.tablename+"` VALUES ("
+
+        batch_size = 1000
+        sql = "INSERT INTO `{0}`.`{1}` VALUES ".format(self.database, self.table)
+        for i, row in enumerate(self.csvreader):
+            # Build INSERT statement
+            sql += '('
             for col in row:
-                sql += "'"+col.replace('"', '\"').replace("'", "\\'")+"',"
-            sql = sql[:-1]
-            sql += ");\n"
-        return sql
+                col_str = 'NULL,' if col == '' else "'{}',".format(col.replace('"', '\"').replace("'", "\\'"))
+                sql += col_str
+            sql = sql[:-1] + "),"
+
+            if (i + 1) % batch_size == 0:
+                sql = sql[:-1] + ";"
+                with self._get_mysql_conn() as cur:
+                    cur.execute(sql)
+
+                sql = "INSERT INTO `{0}`.`{1}` VALUES ".format(self.database, self.table)
+                print "inserted {0} rows in {1}.{2}".format(i + 1, self.database, self.table)
 
 
 def args():
@@ -94,21 +116,16 @@ def main():
     health_db = 'health_db_internet'
     a = args()
 
-    conn = MySQLdb.connect(host=a.db_host,
-                           port=3306,
-                           user=a.db_user,
-                           db=health_db,
-                           passwd=a.password)
-
     # Create object for translating CSV to SQL creation statements
-    builder = csv2mysql(a.csv_file)
+    builder = csv2mysql(a.csv_file, health_db, a.db_table, a.db_host, a.db_user, a.password)
+    print "Inferring column types..."
     builder.generate()
-    # import code; code.interact(local=locals())
 
-    with conn as cursor:
-        create_table_stmt = builder.buildCreateTable(health_db, a.db_table)
-        print create_table_stmt
-        cursor.execute(create_table_stmt)
+    print "Creating MySQL table..."
+    builder.create_table()
+
+    print "Inserting CSV data to MySQL table..."
+    builder.insert_data()
 
 
 if __name__ == '__main__':
