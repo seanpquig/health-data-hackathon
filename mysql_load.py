@@ -61,7 +61,7 @@ class csv2mysql(object):
     def buildCreateTable(self, db, table):
         sql = "CREATE TABLE IF NOT EXISTS `{0}`.`{1}` (\n".format(db, table)
         for header in self.headers:
-            sql = sql+"  `"+header+"` \t "+self.types[header]+",\n"
+            sql = sql + "  `{0}` \t {1},\n".format(header, self.types[header])
         sql = sql[:-2]
         sql += "\n);"
         return sql
