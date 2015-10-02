@@ -2,7 +2,7 @@
 # encoding: utf-8
 """
 Translate CSV files into MySQL tables.
-Borrowed a good bit of codes from this project https://github.com/maxhodak/csv2sql
+Borrowed a good bit of code from this project https://github.com/maxhodak/csv2sql
 """
 
 import MySQLdb
@@ -115,8 +115,8 @@ class Csv2MySQL(object):
 def args():
     parser = argparse.ArgumentParser(description="Load CSV dataset into MySQL table.")
     parser.add_argument('csv_file', help='CSV file path', type=str)
-    parser.add_argument('database', help='Table to CREATE in Health DB', type=str)
-    parser.add_argument('db_table', help='Table to CREATE in Health DB', type=str)
+    parser.add_argument('database', help='MySQL database', type=str)
+    parser.add_argument('db_table', help='MySQL table to create', type=str)
     parser.add_argument('db_host', help='DB host', type=str)
     parser.add_argument('db_user', help='DB user', type=str)
     parser.add_argument('password', help='DB user\'s password', type=str)
