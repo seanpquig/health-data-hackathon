@@ -13,7 +13,7 @@ import argparse
 class Csv2MySQL(object):
 
     def __init__(self, filename, database, table, db_host, db_user, password):
-        super(csv2mysql, self).__init__()
+        super(Csv2MySQL, self).__init__()
 
         self.database = database
         self.table = table
@@ -28,7 +28,7 @@ class Csv2MySQL(object):
 
         self.csvreader = csv.reader(self.csvfile, self.dialect)
         self.headers = self.csvreader.next()
-        self.headers = [header.split(':')[0] for header in self.headers]
+        self.headers = [header.split(':')[0][:64] for header in self.headers]
         self.types = dict([(header, 'BIGINT') for header in self.headers])
 
     def _get_mysql_conn(self):
@@ -115,6 +115,7 @@ class Csv2MySQL(object):
 def args():
     parser = argparse.ArgumentParser(description="Load CSV dataset into MySQL table.")
     parser.add_argument('csv_file', help='CSV file path', type=str)
+    parser.add_argument('database', help='Table to CREATE in Health DB', type=str)
     parser.add_argument('db_table', help='Table to CREATE in Health DB', type=str)
     parser.add_argument('db_host', help='DB host', type=str)
     parser.add_argument('db_user', help='DB user', type=str)
@@ -123,11 +124,10 @@ def args():
 
 
 def main():
-    health_db = 'health_db_internet'
     a = args()
 
     # Create object for translating CSV to SQL creation statements
-    csv2mysql = Csv2MySQL(a.csv_file, health_db, a.db_table, a.db_host, a.db_user, a.password)
+    csv2mysql = Csv2MySQL(a.csv_file, a.database, a.db_table, a.db_host, a.db_user, a.password)
 
     print "Inferring column types..."
     csv2mysql.generate()
